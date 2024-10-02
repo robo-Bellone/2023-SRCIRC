@@ -1,0 +1,393 @@
+# 카메라(웹캠) 프레임 읽기 (video_cam.py)
+import serial
+import cv2
+import numpy as np
+import time
+
+blk_size = 9        # 블럭 사이즈
+C = 5               # 차감 상수 
+
+wvXXX = np.ones((1,300))
+wvXXXvalue = wvXXX * 150
+
+wvR1 = np.arange(1,151) 
+wvR = wvR1 / 3
+wvL1 = np.flip(wvR)
+wvL = wvL1 / 3 
+wvR= wvR/3
+wvX = np.arange(0,300) 
+wvY = wvX.reshape(300,1)
+
+
+wvxxxvaluevalue = (wvX - wvXXXvalue) / 3
+
+cntGo = 0
+cntRight = 0
+cntLeft = 0
+cntturnleft = 0
+cntturnright = 0
+
+
+
+gijun = 2000
+cntgijun = 1
+
+###########
+hurdlecnt = 0
+
+cntGo_hurdle = 0
+cntRight_hurdle = 0
+cntLeft_hurdle = 0
+cntturnleft_hurdle = 0
+cntturnright_hurdle = 0
+
+port = "COM1"
+baud = 115200
+
+# ser = serial.Serial(port,baud)  
+# ser.write(b'PS00023,29933;')
+# time.sleep(1)
+# ser.write(b'PS00024,28600;')
+# time.sleep(1)
+
+def goleft(): 
+    print("GOLEFT")
+    # ser.write(b'JK0100;')
+    # time.sleep(1)
+def goright(): 
+    print("GORIGHT")
+    # ser.write(b'JK0400;')
+    # time.sleep(1)
+def gogogo(): 
+    print("GOGOGOGO")
+    # ser.write(b'JK0020;')
+    # time.sleep(1)
+def turnleft(): 
+    #time.sleep(2)
+    print("TURNLEFT")
+    # ser.write(b'JK0100;')
+    # time.sleep(1)
+def turnright(): 
+    #time.sleep(2)
+    print("TURNRIGHT")
+    # ser.write(b'JK0400;')
+    # time.sleep(1)
+def gogogo_small(): 
+    print("gogo")
+    # ser.write(b'JK0002;')
+    # time.sleep(1)
+
+def nothing(x):
+    pass
+# 목표지점 HSV찾는 토글바 열기
+def settingGoal_bar():
+    cv2.namedWindow('HSV_settings')
+    cv2.resizeWindow('HSV_settings',400,500)
+
+    cv2.createTrackbar('H_MAX', 'HSV_settings', 0, 180, nothing)
+    cv2.setTrackbarPos('H_MAX', 'HSV_settings', 255)
+    cv2.createTrackbar('H_MIN', 'HSV_settings', 0, 180, nothing)
+    cv2.setTrackbarPos('H_MIN', 'HSV_settings', 0)
+
+    cv2.createTrackbar('S_MAX', 'HSV_settings', 0, 255, nothing)
+    cv2.setTrackbarPos('S_MAX', 'HSV_settings', 255)
+    cv2.createTrackbar('S_MIN', 'HSV_settings', 0, 255, nothing)
+    cv2.setTrackbarPos('S_MIN', 'HSV_settings', 0)
+
+    cv2.createTrackbar('V_MAX', 'HSV_settings', 0, 255, nothing)
+    cv2.setTrackbarPos('V_MAX', 'HSV_settings', 50)
+    cv2.createTrackbar('V_MIN', 'HSV_settings', 0, 255, nothing)
+    cv2.setTrackbarPos('V_MIN', 'HSV_settings', 0)
+
+
+    cv2.createTrackbar('H2_MAX', 'HSV_settings', 0, 180, nothing)
+    cv2.setTrackbarPos('H2_MAX', 'HSV_settings', 50)
+    cv2.createTrackbar('H2_MIN', 'HSV_settings', 0, 180, nothing)
+    cv2.setTrackbarPos('H2_MIN', 'HSV_settings', 20)
+
+    cv2.createTrackbar('S2_MAX', 'HSV_settings', 0, 255, nothing)
+    cv2.setTrackbarPos('S2_MAX', 'HSV_settings', 175)
+    cv2.createTrackbar('S2_MIN', 'HSV_settings', 0, 255, nothing)
+    cv2.setTrackbarPos('S2_MIN', 'HSV_settings', 50)
+
+    cv2.createTrackbar('V2_MAX', 'HSV_settings', 0, 255, nothing)
+    cv2.setTrackbarPos('V2_MAX', 'HSV_settings', 255)
+    cv2.createTrackbar('V2_MIN', 'HSV_settings', 0, 255, nothing)
+    cv2.setTrackbarPos('V2_MIN', 'HSV_settings', 200)
+settingGoal_bar()
+
+
+
+
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)               # 0번 카메라 장치 연결 ---①
+if cap.isOpened():                      # 캡쳐 객체 연결 확인
+    while True:
+        try:
+            H_max = cv2.getTrackbarPos('H_MAX', 'HSV_settings')
+            H_min = cv2.getTrackbarPos('H_MIN', 'HSV_settings')
+            S_max = cv2.getTrackbarPos('S_MAX', 'HSV_settings')
+            S_min = cv2.getTrackbarPos('S_MIN', 'HSV_settings')
+            V_max = cv2.getTrackbarPos('V_MAX', 'HSV_settings')
+            V_min = cv2.getTrackbarPos('V_MIN', 'HSV_settings')
+            
+            
+            H2_max = cv2.getTrackbarPos('H2_MAX', 'HSV_settings')
+            H2_min = cv2.getTrackbarPos('H2_MIN', 'HSV_settings')
+            S2_max = cv2.getTrackbarPos('S2_MAX', 'HSV_settings')
+            S2_min = cv2.getTrackbarPos('S2_MIN', 'HSV_settings')
+            V2_max = cv2.getTrackbarPos('V2_MAX', 'HSV_settings')
+            V2_min = cv2.getTrackbarPos('V2_MIN', 'HSV_settings')
+            
+            
+            ret, orginimg = cap.read()           # 다음 프레임 읽기
+            img = cv2.resize(orginimg, (300, 300))
+            
+            
+            img2 = img.astype(np.uint16)                # dtype 변경 ---①
+            b,g,r = cv2.split(img2)                     # 채널 별로 분리 ---②
+            #b,g,r = img2[:,:,0], img2[:,:,1], img2[:,:,2]
+            gray1 = ((b + g + r)/3).astype(np.uint8)    # 평균 값 연산후 dtype 변경 ---③
+            
+            gray2 = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # BGR을 그레이 스케일로 변경 ---④
+            
+        
+            
+            edges = cv2.Canny(gray2,50,150,apertureSize=3)
+            lines = cv2.HoughLines(edges,1,np.pi/180,60)
+            degree_threshold = 15  # ±10도 내의 선을 그립니다.
+            rad_threshold = np.radians(degree_threshold)  # 각도를 라디안으로 변환
+
+            matrix=np.ones((300,300), dtype=np.uint8)
+            matrix=matrix*255
+            for i in range(len(lines)):
+                for rho, theta in lines[i]:
+                    # theta가 수평으로부터 ±10도 범위 내에 있는지 확인
+                    if abs(theta - np.pi/2) < rad_threshold:  # np.pi/2 는 90도 (수평선)를 라디안으로 표현한 값입니다.
+                        a = np.cos(theta)
+                        b = np.sin(theta)
+                        x0 = a * rho
+                        y0 = b * rho
+                        x1 = int(x0 + 1000*(-b))
+                        y1 = int(y0 + 1000*(a))
+                        x2 = int(x0 - 1000*(-b))
+                        y2 = int(y0 - 1000*(a))
+                        cv2.line(matrix, (x1, y1), (x2, y2), 0, 35)  # 선의 두께를 5로 지정
+
+            hsvFrame = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            #img2 = img.astype(np.uint16)                # dtype 변경 ---①
+            #b,g,r = cv2.split(img2)                     # 채널 별로 분리 ---②
+            #b,g,r = img2[:,:,0], img2[:,:,1], img2[:,:,2]
+            #gray1 = ((b + g + r)/3).astype(np.uint8)    # 평균 값 연산후 dtype 변경 ---③
+            
+            #gray2 = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # BGR을 그레이 스케일로 변경 ---④
+            
+            # --- ① NumPy API로 바이너리 이미지 만들기
+            #thresh_np = np.zeros_like(gray2)   # 원본과 동일한 크기의 0으로 채워진 이미지
+            #thresh_np[ gray2 < 127] = 255      # 127 보다 큰 값만 255로 변경
+            # ---② OpenCV API로 바이너리 이미지 만들기
+            #ret, thresh_cv = cv2.threshold(gray2, 127, 255, cv2.THRESH_BINARY) 
+            
+            
+            #토츠 쓰레시홀드처리 적응형 임계값 적용 => 오픈씨브이에서 기본으로 제공하는 바이너리, 이진화보다 더 깔끔한 검출, 일일이 임계값을 찾지 않아도 됨.
+            #t, t_otsu = cv2.threshold(gray2, -1, 255,  cv2.THRESH_BINARY | cv2.THRESH_OTSU) 
+            
+            #가우시안블러쓰레시홀드처리 
+            #th3 = cv2.adaptiveThreshold(gray2, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, \
+            #                             cv2.THRESH_BINARY, blk_size, C)
+            
+            
+            
+            line_lower = np.array([H_min, S_min, V_min], np.uint8) 
+            line_upper = np.array([H_max, S_max, V_max], np.uint8) 
+            line_mask = cv2.inRange(hsvFrame, line_lower, line_upper) 
+            
+            
+            line2_lower = np.array([H2_min, S2_min, V2_min], np.uint8) 
+            line2_upper = np.array([H2_max, S2_max, V2_max], np.uint8) 
+            line2_mask = cv2.inRange(hsvFrame, line2_lower, line2_upper) 
+            
+            
+            
+            #res_line = cv2.bitwise_and(img, img, mask = line_mask)
+            #res2_line = cv2.bitwise_and(img, img, mask = line2_mask)
+            
+            #print (res_line)
+            ########### 마라톤 관련 내용
+            ########### 이진화 한 값을 0과 255를 바꿈 (그... 지금 하고 있는곳이 하얀색 배경에 검정색 그림이기 때문)
+            thresh = line_mask
+            
+            ########너무 큰 숫자를 만들지 않기 위해 0 255를 0 1 로 바꿈 (행렬구조임)
+            thresh_02 = thresh/255
+            
+            matrix= matrix/255
+            
+            thresh_02 = thresh_02 * matrix
+            
+            thresh_01 = thresh_02 * wvY 
+            
+            ######### 이 행렬구조의 원소들의 합을 구함
+            ###########열을 다해서 행으로 만듦
+            threshrowsum1 = np.sum(thresh_01, axis = 0)
+            
+            threshrowsum = threshrowsum1 * wvxxxvaluevalue * wvxxxvaluevalue* wvxxxvaluevalue
+            
+            ##############그 열안에 있는 원소들의 합을 다 함.
+            threshallsum = int((np.sum(threshrowsum, axis=1))/1000000)
+            
+            
+            
+            
+            
+            ########### 허들 관련 내용####################################################################
+            thres_hurdle = line2_mask/255
+            
+            
+            ###판별을 위해 다아아아 더함
+            thres2_hurdle = np.sum(thres_hurdle)
+            
+            
+            ########너무 큰 숫자를 만들지 않기 위해 0 255를 0 1 로 바꿈 (행렬구조임)
+            thresh_02_hurdle = thres_hurdle/255
+            thresh_01_hurdle = thresh_02_hurdle * np.flip(wvY) 
+            
+            HurdleROE = thresh_02_hurdle[-60:, :]
+            HurdleROE = np.sum(HurdleROE)
+            
+            ######### 이 행렬구조의 원소들의 합을 구함
+            ###########열을 다해서 행으로 만듦
+            threshrowsum1_hurdle = np.sum(thresh_01_hurdle, axis = 0)
+            
+            threshrowsum_hurdle = threshrowsum1_hurdle * wvxxxvaluevalue * wvxxxvaluevalue* wvxxxvaluevalue
+            
+            ##############그 열안에 있는 원소들의 합을 다 함.
+            threshallsum_hurdle = int((np.sum(threshrowsum_hurdle, axis=1))/1000000)
+            
+            
+            
+            
+            '''
+            ##### 반갈라서 왼쪽의 합을 구함
+            leftthress = thresh_01[0:300, 0:150]
+            leftthressrowsum = np.sum(leftthress, axis=0)
+            leftthressrowsumWv = leftthressrowsum * wvL * wvL
+            leftthresssumsum = np.sum(leftthressrowsumWv, axis= 0)
+            
+            ###############반갈라서 오른쪽 합을 구함
+            rightthress = thresh_01[0:300, 150:300]
+            rightthressrowsum = np.sum(rightthress, axis=0)
+            rightthressrowsumWv = rightthressrowsum * wvR * wvR
+            rightthresssumsum = np.sum(rightthressrowsumWv,axis=0)
+            
+            ####################150칸짜리 가중치를 위한 열을 만듦
+            '''
+            HurdleDetect =  threshallsum_hurdle
+            lineDetect =  threshallsum
+            
+            
+            
+            #print(rightthresssumsum + leftthresssumsum)
+            
+            #헤리스 코너 응답함ㅅ 계산
+            # 좋은 특징점 검출 방법
+            #corners = cv2.goodFeaturesToTrack(t_otsu, 400, 0.1, 10)
+
+            #dst1 = cv2.cvtColor(t_otsu, cv2.COLOR_GRAY2BGR)
+            '''
+            if corners is not None:
+                for i in range(corners.shape[0]): # 코너 갯수만큼 반복문
+                    pt = (int(corners[i, 0, 0]), int(corners[i, 0, 1])) # x, y 좌표 받아오기
+                    cv2.circle(dst1, pt, 5, (0, 0, 255), 2) # 받아온 위치에 원
+        
+            
+            #fast 코너 검출
+            fast = cv2.FastFeatureDetector_create(60) # 임계값 60 지정
+            keypoints = fast.detect(gray2) # Keypoint 객체를 리스트로 받음
+
+            dst2 = cv2.cvtColor(gray2, cv2.COLOR_GRAY2BGR)
+
+            for kp in keypoints:
+                pt = (int(kp.pt[0]), int(kp.pt[1])) # kp안에 pt좌표가 있음
+                cv2.circle(dst2, pt, 5, (0, 0, 255), 2)
+            
+            '''
+
+            if 5000 > thres2_hurdle > 0:
+                hurdlecnt = hurdlecnt + 1
+            if hurdlecnt > 100:
+                if HurdleDetect > 10:
+                    turnright()
+                elif HurdleDetect < -10:
+                    turnleft()
+                else: 
+                    if(HurdleROE > 35):
+                        print("가즈아")
+                        hurdlecnt = 0
+                    else:
+                        print("잰걸음")
+                
+                
+            else:
+                ##########허들 이 보이기 전에는 마라톤 가기
+                if (-gijun <= lineDetect <= gijun):
+                    cntGo = cntGo+1
+                    
+                elif(lineDetect > gijun):
+                    cntRight = cntRight+1
+                elif(lineDetect < -gijun):
+                    cntLeft = cntLeft + 1
+                
+                if (cntGo > cntgijun ):
+                    gogogo()
+                    cntGo = 0
+                    cntLeft = 0
+                    cntRight = 0
+                elif(cntLeft > cntgijun):
+                    cntturnleft += 1
+                    if (cntturnleft > 5):
+                        turnleft()
+                        cntturnleft = 0
+                    goleft()
+                    
+                    
+                    cntGo = 0
+                    cntLeft = 0
+                    cntRight = 0
+                elif (cntRight > cntgijun):
+                    cntturnright += 1
+                    if(cntturnright > 5):
+                        turnright()
+                        cntturnright = 0
+                    goright()
+                    
+                    cntGo = 0
+                    cntLeft = 0
+                    cntRight = 0
+                
+
+            ########################################################################
+                
+                
+            if ret:
+                cv2.imshow('camera', img)   # 다음 프레임 이미지 표시
+                #cv2.imshow('gray1', gray1)
+                #cv2.imshow('gray2', gray2)
+                #cv2.imshow('thresh_cv', thresh_cv)
+                #cv2.imshow('t_otsu', thresh)
+                cv2.imshow('line_mask', line_mask)
+                cv2.imshow('line2_mask', line2_mask)
+                #cv2.imshow('dst2', dst2)
+                cv2.imshow('edge_img', matrix)
+                
+                
+                if cv2.waitKey(1) != -1:    # 1ms 동안 키 입력 대기 ---②
+                    break                   # 아무 키라도 입력이 있으면 중지
+            else:
+                print('no frame')
+                break
+        
+        except TypeError:
+            pass
+else:
+    print("can't open camera.")
+cap.release()                           # 자원 반납
+cv2.destroyAllWindows()
